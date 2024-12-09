@@ -4,7 +4,9 @@ include __DIR__ . '/../lib/legacy_fields.php';
 // Validate input
 if (!isset($_REQUEST['transaction_id']) || empty($_REQUEST['transaction_id'])) {
     \Log::info('Transaction ID is missing or empty.');
-    $place_order['redirect'] = $mw_cancel_url ?? site_url('shop/cart');
+    $update_order['is_paid'] = 0;
+    $update_order['order_completed'] = 0;
+    // header("Location: $mw_cancel_url");
     return;
 }
 
