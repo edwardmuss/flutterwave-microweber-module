@@ -55,3 +55,9 @@
 
     <input type="text" class="mw_option_field form-control" name="flutterwave_currency" placeholder="USD" data-option-group="payments" value="<?php print get_option('flutterwave_currency', 'payments'); ?>">
 </div>
+
+<div class="form-group">
+    <label class="form-label"><?php _e("Site Title"); ?>: </label>
+
+    <input type="text" class="mw_option_field form-control" name="flutterwave_title" placeholder="My Store Name" data-option-group="payments" value="<?php print get_option('flutterwave_title', 'payments'); ?>">
+</div>

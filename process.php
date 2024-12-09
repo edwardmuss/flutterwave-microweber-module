@@ -1,10 +1,13 @@
 <?php
 // Obtain test cards here: https://developer.flutterwave.com/docs/integration-guides/testing-helpers/
+include __DIR__ . '/../lib/legacy_fields.php';
 
 $currency = get_option('flutterwave_currency', 'payments') ?: 'USD';
 $test_mode = get_option('flutterwave_testmode', 'payments') === 'y';
-$redirect_url = "https:://test.com";
-// $redirect_url = mw()->url_manager->current();
+// \Log::info($mw_return_url);
+$redirect_url = $mw_return_url;
+// \Log::info($place_order['mw_payment_fields']);
+// die;
 
 // Check if test mode is enabled
 if ($test_mode) {
@@ -31,6 +34,7 @@ $order_id = $place_order['id'];
 $amount = $place_order['amount'];
 $customer_email = $place_order['email'];
 $customer_name = $place_order['first_name'] . ' ' . $place_order['last_name'];
+$store_name = get_option('flutterwave_title', 'payments') ?? 'Online Store';
 
 // Generate payment form
 $gateway_url = $test_mode ? "https://api.flutterwave.com/v3/payments" : "https://api.flutterwave.com/v3/payments";
@@ -47,8 +51,9 @@ $post_data = array(
         'name' => $customer_name
     ),
     'customizations' => array(
-        'title' => 'Your Store Name',
+        'title' => $store_name,
         'description' => 'Payment for order #' . $order_id,
+        'failure_url' => 'test.com',
     )
 );
 
@@ -79,8 +84,18 @@ curl_close($curl);
 
 $res = json_decode($response);
 if ($res->status == 'success') {
+    $html = _e('Thank you for your order', true);
+
+    if (get_option('flutterwave_show_msg', 'payments') == 'y') {
+        $html .= '<br />' . get_option('flutterwave_msg', 'payments');
+    }
+
+    // $place_order['order_completed'] = 1;
+    // $place_order['is_paid'] = 0;
+    // $place_order['success'] = $html;
+
     $link = $res->data->link;
-    return mw()->url_manager->redirect($link);
+    $place_order['redirect'] = $link;
 } else {
     $place_order['error'] = $response;
 }

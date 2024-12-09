@@ -1,21 +1,21 @@
 <?php
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+include __DIR__ . '/../lib/legacy_fields.php';
 
 // Validate input
-if (!isset($_REQUEST['order_id']) || !isset($_REQUEST['transaction_id'])) {
-    error_log('Missing order_id or transaction_id.');
+if (!isset($_REQUEST['transaction_id']) || empty($_REQUEST['transaction_id'])) {
+    \Log::info('Transaction ID is missing or empty.');
+    $place_order['redirect'] = $mw_cancel_url ?? site_url('shop/cart');
     return;
 }
 
+$transaction_id = $_REQUEST['transaction_id'];
 $test_mode = get_option('flutterwave_testmode', 'payments') === 'y';
-$secret_key = $test_mode ? 'FLWSECK_TEST-f5d5d46097e14a775a381578f18ba648-X' : get_option('flutterwave_secret_key', 'payments');
+$secret_key = $test_mode
+    ? 'FLWSECK_TEST-f5d5d46097e14a775a381578f18ba648-X'
+    : get_option('flutterwave_secret_key', 'payments');
 
 // Verify transaction
-$transaction_id = $_REQUEST['transaction_id'];
 $curl = curl_init();
-
 curl_setopt_array($curl, array(
     CURLOPT_URL => "https://api.flutterwave.com/v3/transactions/{$transaction_id}/verify",
     CURLOPT_RETURNTRANSFER => true,
@@ -27,38 +27,61 @@ $err = curl_error($curl);
 curl_close($curl);
 
 if ($err) {
-    error_log('cURL Error: ' . $err);
+    \Log::info('cURL Error: ' . $err);
     return;
 }
 
 $response_data = json_decode($response, true);
 
-if (!$response_data || $response_data['status'] !== 'success' || $response_data['data']['status'] !== 'successful') {
-    error_log('Transaction verification failed: ' . json_encode($response_data));
+if (!$response_data) {
+    \Log::info('Invalid response data.');
     return;
 }
 
-// Update order
-$order_id = $_REQUEST['order_id'];
-$query = array('id' => $order_id, 'single' => true);
-$order = mw()->shop_manager->get_orders($query);
+// Log response
+\Log::info($response);
 
-if (!$order) {
-    error_log("Order not found for ID: $order_id");
-    return;
+if ($response_data['status'] === 'success') {
+    \Log::info('Transaction successful.');
+
+    $order_id = $_REQUEST['order_id'] ?? null;
+    if (!$order_id) {
+        \Log::info('Order ID is missing.');
+        return;
+    }
+
+    $query = array(
+        'id' => $order_id,
+        'payment_verify_token' => $_REQUEST['payment_verify_token'] ?? '',
+        'single' => true,
+    );
+    $order = mw()->shop_manager->get_orders($query);
+
+    if ($order) {
+        $update_order = [
+            'transaction_id' => $transaction_id,
+            'payment_amount' => $response_data['data']['amount'] ?? 0,
+            'payment_status' => 'completed',
+            'payment_email' => $response_data['data']['customer']['email'] ?? null,
+            'is_paid' => 1,
+            'order_completed' => 1,
+            'success' => 'Your payment was successful! Transaction ID: ' . ($response_data['data']['id'] ?? 'N/A'),
+        ];
+
+        // Update order logic goes here, e.g., mw()->shop_manager->save_order($update_order);
+        \Log::info('Order updated: ' . json_encode($update_order));
+    } else {
+        \Log::info('Order not found for ID: ' . $order_id);
+    }
+} elseif ($response_data['status'] === 'cancelled' || ($_REQUEST['status'] ?? '') === 'cancelled') {
+    \Log::info('Transaction cancelled.');
+    $place_order['redirect'] = $mw_cancel_url ?? site_url('shop/cart');
+} elseif ($response_data['status'] === 'error') {
+    \Log::info('Transaction error: ' . json_encode($response_data));
+    $place_order['redirect'] = $mw_cancel_url ?? site_url('shop/cart');
+} else {
+    \Log::info('Unhandled transaction status: ' . $response_data['status']);
 }
 
-$update_order = array(
-    'transaction_id' => $response_data['data']['id'],
-    'payment_amount' => $response_data['data']['amount'],
-    'payment_currency' => $response_data['data']['currency'],
-    'payment_email' => $response_data['data']['customer']['email'],
-    'payment_name' => $response_data['data']['customer']['name'],
-    'payment_status' => 'completed',
-    'is_paid' => 1,
-    'order_completed' => 1,
-    'success' => 'Payment was successful! Transaction ID: ' . $response_data['data']['id'],
-);
-
-$result = mw()->shop_manager->save_order($update_order);
-error_log('Order update result: ' . json_encode($result));
+// Final log for debugging
+\Log::info($place_order);
