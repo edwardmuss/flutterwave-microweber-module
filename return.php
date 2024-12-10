@@ -1,12 +1,24 @@
 <?php
 include __DIR__ . '/../lib/legacy_fields.php';
 
+session_start();
+\Log::info($_SESSION['mw_cancel_url']);
 // Validate input
+if (isset($_REQUEST['status']) && $_REQUEST['status'] == 'cancelled') {
+    \Log::info('Transaction cancelled.');
+    $mw_cancel_url = $_SESSION['mw_cancel_url'];
+    $place_order['redirect'] = "$mw_cancel_url" . "&status=cancelled";
+    exit;
+}
+
 if (!isset($_REQUEST['transaction_id']) || empty($_REQUEST['transaction_id'])) {
-    \Log::info('Transaction ID is missing or empty.');
-    $update_order['is_paid'] = 0;
-    $update_order['order_completed'] = 0;
+    // $update_order['is_paid'] = 0;
+    // $update_order['order_completed'] = 0;
+    // $mw_cancel_url = $_SESSION['mw_cancel_url'];
     // header("Location: $mw_cancel_url");
+    // unset($_SESSION['mw_cancel_url']);
+    $place_order['redirect'] = '';
+    exit;
     return;
 }
 
@@ -86,4 +98,4 @@ if ($response_data['status'] === 'success') {
 }
 
 // Final log for debugging
-\Log::info($place_order);
+// \Log::info($place_order);

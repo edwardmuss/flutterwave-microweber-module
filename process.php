@@ -1,7 +1,10 @@
 <?php
+session_start();
+
 // Obtain test cards here: https://developer.flutterwave.com/docs/integration-guides/testing-helpers/
 include __DIR__ . '/../lib/legacy_fields.php';
 
+$_SESSION['mw_cancel_url'] = $mw_cancel_url;
 $currency = get_option('flutterwave_currency', 'payments') ?: 'USD';
 $test_mode = get_option('flutterwave_testmode', 'payments') === 'y';
 // \Log::info($mw_return_url);
@@ -28,6 +31,15 @@ if (!$public_key) {
     return;
 }
 
+// Ensure Failed Transaction does not proceed
+if (isset($_REQUEST['mw_payment_failure'])) {
+    // if ($_REQUEST['status'] == 'cancelled') {
+    //     $place_order['error'] = 'You have cancelled the transaction';
+    // }
+    $place_order['error'] = 'Transaction could not be completed';
+    return;
+}
+// \Log::info($place_order);
 
 // Get order details
 $order_id = $place_order['id'];
@@ -38,7 +50,7 @@ $store_name = get_option('flutterwave_title', 'payments') ?? 'Online Store';
 
 // Generate payment form
 $gateway_url = $test_mode ? "https://api.flutterwave.com/v3/payments" : "https://api.flutterwave.com/v3/payments";
-$tx_ref = uniqid("TXREF_");
+$tx_ref = uniqid("TXREF_") . 'ID_' . $order_id;
 
 $post_data = array(
     'tx_ref' => $tx_ref,
